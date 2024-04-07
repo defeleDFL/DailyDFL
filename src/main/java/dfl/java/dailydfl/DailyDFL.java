@@ -1,6 +1,10 @@
 package dfl.java.dailydfl;
 
 import com.earth2me.essentials.Essentials;
+import com.mojang.authlib.minecraft.client.MinecraftClient;
+import net.minecraft.network.chat.IChatBaseComponent;
+import net.minecraft.server.*;
+import org.bukkit.craftbukkit.*;
 import jdk.internal.joptsimple.internal.Strings;
 import jdk.tools.jlink.plugin.Plugin;
 import net.md_5.bungee.api.ChatMessageType;
@@ -11,6 +15,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.craftbukkit.v1_20_R2.entity.CraftPlayer;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Horse;
@@ -46,6 +51,8 @@ import java.util.List;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.joml.Vector3f;
+
+import static java.lang.String.format;
 
 public class DailyDFL extends JavaPlugin implements Listener {
 
@@ -166,8 +173,9 @@ public class DailyDFL extends JavaPlugin implements Listener {
                 {
                     int oldValue = playersConfig.getInt("players." + event.getPlayer().getName() + ".tasks.eat");
                     setConf("players." + event.getPlayer().getName() + ".tasks.eat", oldValue + 1);
-                    TextComponent text = new TextComponent("test");
+                    int remainedToEat = taskReach - GetPlayerTaskProgress(event.getPlayer(), "eat");
 
+                    SendActionBar(event.getPlayer(), ChatColor.YELLOW + "+1 food eaten", 100);
                 }
                 else if(GetPlayerTaskProgress(event.getPlayer(), "eat") < taskReach)
                 {
@@ -468,6 +476,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
 
     public void UpdateTaskProgress(String _playerName, String _task)
     {
+        Player player = Bukkit.getPlayer(_playerName);
         int oldValue = playersConfig.getInt("players." + _playerName + ".tasks." + _task);
         setConf("players." + _playerName + ".tasks." + _task, oldValue + 1);
         List<String> tasksCompleted = playersConfig.getStringList("players." + _playerName + ".completedtasks");
@@ -475,25 +484,44 @@ public class DailyDFL extends JavaPlugin implements Listener {
         setConf("players." + _playerName + ".completedtasks", tasksCompleted);
         int tasksCompletedInt = GetCompletedTasksInt(_playerName);
         int randomXP = new Random().nextInt(100) + 100;
-        Player player = Bukkit.getPlayer(_playerName);
-        Bukkit.getPlayer(_playerName).giveExp(randomXP);
-        Bukkit.getPlayer(_playerName).playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+        player.giveExp(randomXP);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
         String message = (tasksCompletedInt < 3) ? "You completed a task (+" + randomXP + " xp)." :
                 "You finished all daily tasks (+" + randomXP + "xp, +1RP)";
-        Bukkit.getPlayer(_playerName).sendMessage(ChatColor.DARK_GREEN + message);
+        player.sendMessage(ChatColor.DARK_GREEN + message);
+        SendActionBar(player, ChatColor.YELLOW + "Congratulations! You have " + GetPlayerRemainingTasksInt(player) +
+                " more tasks (/daily).", 140);
         if(tasksCompletedInt == GetAllPlayerTasksInt(_playerName)) {
             setConf("players." + _playerName + ".dailycompleted", 1);
             StatsDFL.UpdateTotalDailyCompleted(_playerName);
-            LaunchFirework(Bukkit.getPlayer(_playerName));
-            CenterText(Bukkit.getPlayer(_playerName), ChatColor.LIGHT_PURPLE + "Congrats!", "You finished all tasks");
+            LaunchFirework(player);
+            CenterText(player, ChatColor.LIGHT_PURPLE + "Congrats!", "You finished all tasks");
+            SendActionBar(player, ChatColor.YELLOW + "Congratulations! You have completed all tasks!", 140);
             StatsDFL.GivePlayerFP(_playerName);
             List<String> stringPlayersCompleted = (List<String>) getConf(_playerName, "listplayerswhocompleted");
             stringPlayersCompleted.add(_playerName);
             setConf("listplayerswhocompleted", stringPlayersCompleted);
             player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_USE, 1f, 1f);
-            LaunchFireworkPlayer(Bukkit.getPlayer(_playerName));
+            LaunchFireworkPlayer(player);
+
         }
-        MessageAllOnTaskCompleted(Bukkit.getPlayer(_playerName));
+        MessageAllOnTaskCompleted(player);
+    }
+
+    private void SendActionBar(Player player, String message, int duration)
+    {
+        new BukkitRunnable() {
+            int ticksElapsed = 0;
+            @Override
+            public void run() {
+                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(message));
+                if(++ticksElapsed >= duration)
+                {
+                    this.cancel();
+                }
+            }
+        }.runTaskTimer(this, 0L, 1);
+
     }
 
     public static int GetCompletedTasksInt(String playerName)

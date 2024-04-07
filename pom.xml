@@ -76,6 +76,12 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot</artifactId>
+            <version>1.20.2-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>dfl.java</groupId>
             <artifactId>StatsDFL</artifactId>
             <version>1</version>
@@ -93,11 +99,9 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.connorlinfoot</groupId>
-            <artifactId>ActionBarAPI</artifactId>
-            <version>1.5.4</version>
-            <scope>system</scope>
-            <systemPath>${basedir}/src/main/resources/ActionBarAPI-1.5.4.jar</systemPath>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-api</artifactId>
+            <version>4.16.0</version>
         </dependency>
     </dependencies>
 </project>

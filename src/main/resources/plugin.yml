@@ -1,0 +1,14 @@
+name: DailyDFL
+version: '${project.version}'
+main: dfl.java.dailydfl.DailyDFL
+api-version: '1.20'
+commands:
+  daily:
+    usage: /daily
+    description: Complete all tasks.
+    aliases:
+      [ task, tasks, dailytask, dailytasks, missions, mission ]
+  dailytest:
+    usage: /dailytest
+  dailyset:
+    usage: /dailyset

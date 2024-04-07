@@ -167,7 +167,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
                     int oldValue = playersConfig.getInt("players." + event.getPlayer().getName() + ".tasks.eat");
                     setConf("players." + event.getPlayer().getName() + ".tasks.eat", oldValue + 1);
                     TextComponent text = new TextComponent("test");
-                    event.getPlayer().sendMessage(ChatMessageType.ACTION_BAR);
+
                 }
                 else if(GetPlayerTaskProgress(event.getPlayer(), "eat") < taskReach)
                 {

@@ -275,7 +275,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         }
     }
 
-    public void loadConf()
+    public synchronized void loadConf()
     {
         file = new File("plugins/DailyDFL/players.yml");
 
@@ -298,7 +298,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         }
     }
 
-    public static void saveConf()
+    public static synchronized void saveConf()
     {
         try {
             playersConfig.save(file);
@@ -309,14 +309,14 @@ public class DailyDFL extends JavaPlugin implements Listener {
 
     }
 
-    public static void setConf(String _path, Object _value)
+    public static synchronized void setConf(String _path, Object _value)
     {
         playersConfig.set(_path, _value);
 
         saveConf();
     }
 
-    public static Object getConf(String _player, String _id)
+    public static synchronized Object getConf(String _player, String _id)
     {
         try
         {

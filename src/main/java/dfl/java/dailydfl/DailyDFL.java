@@ -16,19 +16,13 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.craftbukkit.v1_20_R2.entity.CraftPlayer;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Firework;
-import org.bukkit.entity.Horse;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.player.PlayerBedEnterEvent;
-import org.bukkit.event.player.PlayerBedLeaveEvent;
-import org.bukkit.event.player.PlayerItemConsumeEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -53,6 +47,8 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.joml.Vector3f;
 
 import static java.lang.String.format;
+import static org.bukkit.event.player.PlayerFishEvent.State.CAUGHT_ENTITY;
+import static org.bukkit.event.player.PlayerFishEvent.State.CAUGHT_FISH;
 
 public class DailyDFL extends JavaPlugin implements Listener {
 
@@ -145,11 +141,12 @@ public class DailyDFL extends JavaPlugin implements Listener {
         loadConf();
         LoadPlayerProfile(event.getPlayer());
 
-        Bukkit.getScheduler().runTaskLater(this, () -> {
-            if (!HasDailyCompleted(event.getPlayer().getName())) {
-                ShowDaily(event.getPlayer());
-            }
-        }, 4); // Delay of 5 ticks (0.25 seconds)
+        // This will happen from loginsecurity plugin
+//        Bukkit.getScheduler().runTaskLater(this, () -> {
+//            if (!HasDailyCompleted(event.getPlayer().getName())) {
+//                ShowDaily(event.getPlayer());
+//            }
+//        }, 4); // Delay of 5 ticks (0.25 seconds)
     }
 
     @EventHandler
@@ -186,6 +183,67 @@ public class DailyDFL extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onPlayerFish(PlayerFishEvent event) {
+        String taskString = "fish";
+
+        Entity caughtEntity = event.getCaught();
+        Item caughtItem = (Item) caughtEntity;
+        ItemStack itemStack = caughtItem.getItemStack();
+
+        // If the item caught is not a fish to return.
+        if(!isFish(itemStack.getType())) return;
+
+        Player player = event.getPlayer();
+
+        if(!CheckIfPlayerHasTask(player, taskString)) return;
+        if(IsTaskCompleted(player, taskString)) return;
+
+        HashMap<String, Integer> taskInfo = GetTaskInfo(taskString);
+        int taskReach = 0;
+        for (Map.Entry<String, Integer> entry : taskInfo.entrySet()) {
+            taskReach = entry.getValue();
+        }
+        if(GetPlayerTaskProgress(player, taskString) < taskReach - 1)
+        {
+            int oldValue = playersConfig.getInt("players." + player.getName() + ".tasks." + taskString);
+            setConf("players." + player.getName() + ".tasks." + taskString, oldValue + 1);
+        }
+        else if(GetPlayerTaskProgress(player, taskString) < taskReach)
+        {
+            UpdateTaskProgress(player.getName(), taskString);
+        }
+    }
+
+    private boolean isFish(Material material) {
+        switch (material) {
+            case COD:
+            case SALMON:
+            case TROPICAL_FISH:
+            case PUFFERFISH:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private String FormatItemName(String typeName) {
+        // Split the name into words
+        String[] words = typeName.split("_");
+
+        // Capitalize the first letter of each word
+        StringBuilder formattedName = new StringBuilder();
+        for (String word : words) {
+            if (formattedName.length() > 0) {
+                formattedName.append(" ");
+            }
+            formattedName.append(word.substring(0, 1).toUpperCase());
+            formattedName.append(word.substring(1).toLowerCase());
+        }
+
+        return formattedName.toString();
+    }
+
+    @EventHandler
     public void onPlayerBedLeave(PlayerBedLeaveEvent event) {
         // Check if the player left the bed before morning
         if (event.getBed().getWorld().getTime() >= 0 && event.getBed().getWorld().getTime() < 100) {
@@ -214,36 +272,44 @@ public class DailyDFL extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
-        if (event.getEntityType() == EntityType.SKELETON) {
+        if (event.getEntityType() == EntityType.SKELETON || event.getEntityType() == EntityType.SPIDER) {
             if (event.getEntity().getKiller() != null) {
-
-                if(!CheckIfPlayerHasTask(event.getEntity().getKiller(), "killskeletons")) return; // if he has not
+                String taskString = "";
+                if(event.getEntityType() == EntityType.SKELETON)
+                {
+                    taskString = "killskeletons";
+                }
+                else if(event.getEntityType() == EntityType.SPIDER)
+                {
+                    taskString = "killspiders";
+                }
+                if(!CheckIfPlayerHasTask(event.getEntity().getKiller(), taskString)) return; // if he has not
                 // the task, to return
-                if(IsTaskCompleted(event.getEntity().getKiller(), "killskeletons")) return; // if he has already
+                if(IsTaskCompleted(event.getEntity().getKiller(), taskString)) return; // if he has already
                 // completed, to return
 
                 Player p = event.getEntity().getKiller();
 
-                HashMap<String, Integer> taskInfo = GetTaskInfo("killskeletons");
+                HashMap<String, Integer> taskInfo = GetTaskInfo(taskString);
                 int taskReach = 0;
                 for (Map.Entry<String, Integer> entry : taskInfo.entrySet()) {
                     taskReach = entry.getValue();
                     // Now you can use taskName and taskValue as needed
                 }
-                if(GetPlayerTaskProgress(p, "killskeletons") < taskReach - 1)
+                if(GetPlayerTaskProgress(p, taskString) < taskReach - 1)
                 {
-                    int oldValue = playersConfig.getInt("players." + p.getName() + ".tasks.killskeletons");
-                    setConf("players." + p.getName() + ".tasks.killskeletons", oldValue + 1);
+                    int oldValue = playersConfig.getInt("players." + p.getName() + ".tasks." + taskString);
+                    setConf("players." + p.getName() + ".tasks." + taskString, oldValue + 1);
                 }
-                else if(GetPlayerTaskProgress(p, "killskeletons") < taskReach)
+                else if(GetPlayerTaskProgress(p, taskString) < taskReach)
                 {
-                    UpdateTaskProgress(event.getEntity().getKiller().getName(), "killskeletons");
+                    UpdateTaskProgress(event.getEntity().getKiller().getName(), taskString);
                 }
             }
         }
     }
 
-    private void ShowDaily(Player sender)
+    public static void ShowDaily(Player sender)
     {
         List<String> allPlayerTasks = GetPlayerTasks(sender.getName());
         if(!AreTasksFinished((Player) sender))
@@ -275,7 +341,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         }
     }
 
-    public synchronized void loadConf()
+    public void loadConf()
     {
         file = new File("plugins/DailyDFL/players.yml");
 
@@ -298,7 +364,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         }
     }
 
-    public static synchronized void saveConf()
+    public static void saveConf()
     {
         try {
             playersConfig.save(file);
@@ -309,14 +375,14 @@ public class DailyDFL extends JavaPlugin implements Listener {
 
     }
 
-    public static synchronized void setConf(String _path, Object _value)
+    public static void setConf(String _path, Object _value)
     {
         playersConfig.set(_path, _value);
 
         saveConf();
     }
 
-    public static synchronized Object getConf(String _player, String _id)
+    public static Object getConf(String _player, String _id)
     {
         try
         {
@@ -325,38 +391,38 @@ public class DailyDFL extends JavaPlugin implements Listener {
             else if(_id == "level") return playersConfig.get("players." + _player + ".level");
             else if(_id == "rp") return playersConfig.get("players." + _player + ".rp");
             else if(_id == "lastjoined") return playersConfig.get("players." + _player + ".lastJoined");
-            else if(_id == "task1")
-            {
-                List<String> strings = new ArrayList<>();
-                strings = playersConfig.getStringList("tasks");
-                return true;
-            }
-            else if(_id == "task2")
-            {
-                List<Map<String, Integer>> mapList = getMapListFromYaml("players." + _player + ".tasks");
-                if (mapList != null && !mapList.isEmpty()) {
-                    // Retrieve the first map from the list
-                    Map<String, Integer> firstMap = mapList.get(1);
-                    // Retrieve the first string from the first map
-                    if (!firstMap.isEmpty()) {
-                        return firstMap.keySet().iterator().next();
-                    }
-                }
-                return null;
-            }
-            else if(_id == "task3")
-            {
-                List<Map<String, Integer>> mapList = getMapListFromYaml("players." + _player + ".tasks");
-                if (mapList != null && !mapList.isEmpty()) {
-                    // Retrieve the first map from the list
-                    Map<String, Integer> firstMap = mapList.get(2);
-                    // Retrieve the first string from the first map
-                    if (!firstMap.isEmpty()) {
-                        return firstMap.keySet().iterator().next();
-                    }
-                }
-                return null;
-            }
+//            else if(_id == "task1")
+//            {
+//                List<String> strings = new ArrayList<>();
+//                strings = playersConfig.getStringList("tasks");
+//                return true;
+//            }
+//            else if(_id == "task2")
+//            {
+//                List<Map<String, Integer>> mapList = getMapListFromYaml("players." + _player + ".tasks");
+//                if (mapList != null && !mapList.isEmpty()) {
+//                    // Retrieve the first map from the list
+//                    Map<String, Integer> firstMap = mapList.get(1);
+//                    // Retrieve the first string from the first map
+//                    if (!firstMap.isEmpty()) {
+//                        return firstMap.keySet().iterator().next();
+//                    }
+//                }
+//                return null;
+//            }
+//            else if(_id == "task3")
+//            {
+//                List<Map<String, Integer>> mapList = getMapListFromYaml("players." + _player + ".tasks");
+//                if (mapList != null && !mapList.isEmpty()) {
+//                    // Retrieve the first map from the list
+//                    Map<String, Integer> firstMap = mapList.get(2);
+//                    // Retrieve the first string from the first map
+//                    if (!firstMap.isEmpty()) {
+//                        return firstMap.keySet().iterator().next();
+//                    }
+//                }
+//                return null;
+//            }
             else return playersConfig.get(_id);
         } catch (Exception ex)
         {
@@ -427,7 +493,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         }
     }
 
-    public List<String> GetPlayerTasks(String playerName) {
+    public static List<String> GetPlayerTasks(String playerName) {
         List<String> playerTasks = new ArrayList<>();
 
         ConfigurationSection playerSection = playersConfig.getConfigurationSection("players." + playerName + ".tasks");
@@ -550,10 +616,18 @@ public class DailyDFL extends JavaPlugin implements Listener {
         {
             if(playersConfig.contains("players." + p.getName() + ".tasks.killskeletons")) return true;
         }
+        else if(task.equals("killspiders"))
+        {
+            if(playersConfig.contains("players." + p.getName() + ".tasks.killspiders")) return true;
+        }
+        else if(task.equals("fish"))
+        {
+            if(playersConfig.contains("players." + p.getName() + ".tasks.fish")) return true;
+        }
         return false;
     }
 
-    private Boolean AreTasksFinished(Player p)
+    private static Boolean AreTasksFinished(Player p)
     {
         int tasksCompleted = GetCompletedTasksInt(p.getName());
         int tasksForPlayerInt = 0;
@@ -571,6 +645,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
         else if(task.equals("eat")) return new HashMap<>(Collections.singletonMap("Eat food", 10));
         else if(task.equals("killskeletons")) return new HashMap<>(Collections.singletonMap("Kill Skeletons", 10));
         else if(task.equals("killspiders")) return new HashMap<>(Collections.singletonMap("Kill Spiders", 8));
+        else if(task.equals("fish")) return new HashMap<>(Collections.singletonMap("Catch Fish", 7));
         else return null;
     }
 
@@ -609,7 +684,7 @@ public class DailyDFL extends JavaPlugin implements Listener {
     private static void MessageAllOnTaskCompleted(Player p)
     {
         int tasksCompleted = GetCompletedTasksInt(p.getName());
-        if(tasksCompleted < 2)
+        if(tasksCompleted <= 2)
         {
             for (Player eachP : Bukkit.getOnlinePlayers()) {
                 eachP.sendMessage(dailyPrefix + ChatColor.YELLOW + p.getName() + " completed a task (" + tasksCompleted + "/" +
